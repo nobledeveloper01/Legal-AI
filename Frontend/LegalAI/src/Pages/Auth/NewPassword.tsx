@@ -3,17 +3,21 @@ import { useFormik } from "formik";
 import * as Yup from "yup";
 import axios from "axios";
 import { useNavigate, useLocation } from "react-router-dom";
-import { toast } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
+import { showToast } from "../../components/ShowToast";
 
-const API_BASE_URL = "http://your-api-url.com/api";
+
+// Error Response Interface
+interface ErrorResponse {
+  error?: string;
+  message?: string;
+}
 
 interface NewPasswordValues {
   password: string;
   confirmPassword: string;
 }
 
-// Password Input Component
+// Password Input Component (unchanged)
 const PasswordInput = ({ 
   formik, 
   name, 
@@ -69,7 +73,7 @@ const PasswordInput = ({
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 strokeWidth={2}
-                d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"
+                d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c-4.478 0-8.268 2.943-9.543-7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"
               />
             )}
           </svg>
@@ -86,6 +90,7 @@ const NewPassword = () => {
   const navigate = useNavigate();
   const { state } = useLocation();
   const email = state?.email || "";
+  const resetToken = state?.resetToken || "";
 
   const formik = useFormik<NewPasswordValues>({
     initialValues: {
@@ -95,9 +100,6 @@ const NewPassword = () => {
     validationSchema: Yup.object({
       password: Yup.string()
         .min(8, "Must be at least 8 characters")
-        .matches(/[a-z]/, "Must contain a lowercase letter")
-        .matches(/[A-Z]/, "Must contain an uppercase letter")
-        .matches(/[0-9]/, "Must contain a number")
         .required("Required"),
       confirmPassword: Yup.string()
         .oneOf([Yup.ref("password")], "Passwords must match")
@@ -105,21 +107,22 @@ const NewPassword = () => {
     }),
     onSubmit: async (values, { setSubmitting }) => {
       try {
-        const response = await axios.post(`${API_BASE_URL}/auth/reset-password`, {
+        const response = await axios.post(`${import.meta.env.VITE_API_URL}/auth/reset-password`, {
           email,
           password: values.password,
+          resetToken: resetToken,
         });
 
         if (response.status === 200) {
-          toast.success("Password reset successfully!", { position: "top-center" });
+          showToast("Password reset successfully!", "success");
           setTimeout(() => navigate("/login"), 1500);
         }
       } catch (error) {
-        if (axios.isAxiosError(error)) {
-          const message = error.response?.data?.message || "Failed to reset password";
-          toast.error(message);
+        if (axios.isAxiosError<ErrorResponse>(error)) {
+          const message = error.response?.data?.message || error.response?.data?.error || "Failed to reset password";
+          showToast(message, "error");
         } else {
-          toast.error("Something went wrong");
+          showToast("Something went wrong", "error");
         }
       } finally {
         setSubmitting(false);
@@ -185,6 +188,7 @@ const NewPassword = () => {
         <p className="mt-4 text-center text-sm text-gray-600">
           Back to{" "}
           <button
+          type="submit"
             onClick={() => navigate("/login")}
             className="text-indigo-600 hover:text-indigo-800"
           >
@@ -192,7 +196,6 @@ const NewPassword = () => {
           </button>
         </p>
       </div>
-      
     </div>
   );
 };

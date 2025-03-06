@@ -1,12 +1,18 @@
-import { useState, useEffect} from "react";
+import { useState, useEffect } from "react";
 import { useFormik } from "formik";
 import * as Yup from "yup";
 import axios from "axios";
 import { useNavigate, useLocation } from "react-router-dom";
-import { toast } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
+import { showToast } from "../../components/ShowToast";
 
-const API_BASE_URL = "http://your-api-url.com/api";
+
+interface errorResponse {
+  status: number;
+  message: string;
+  details?: {
+    [key: string]: string;
+  };
+}
 
 interface OTPFormValues {
   otp: string;
@@ -18,11 +24,11 @@ const useResendOTP = (email: string) => {
 
   const resendOTP = async () => {
     try {
-      await axios.post(`${API_BASE_URL}/auth/resend-otp`, { email });
-      toast.success("New OTP sent!", { position: "top-right" });
+      await axios.post(`${import.meta.env.VITE_API_URL}/auth/resend-otp`, { email });
+      showToast("New OTP sent!", "success");
       setCooldown(60);
     } catch (error) {
-      toast.error("Failed to resend OTP", { position: "top-right" });
+      showToast("Failed to resend OTP", "error");
     }
   };
 
@@ -43,34 +49,32 @@ const OTPInput = ({ formik }: { formik: any }) => (
       OTP Code
     </label>
     <div className="relative">
-  <input
-    id="otp"
-    type="text"  // Keep as text for better control
-    name="otp"
-    maxLength={6}
-    inputMode="numeric"  // Shows numeric keyboard on mobile
-    pattern="[0-9]*"     // HTML5 pattern for validation
-    className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all text-center tracking-wider ${
-      formik.touched.otp && formik.errors.otp
-        ? "border-red-400"
-        : "border-gray-200 hover:border-gray-300"
-    }`}
-    placeholder="••••••"
-    {...formik.getFieldProps("otp")}
-    disabled={formik.isSubmitting}
-    onKeyPress={(e) => {
-      // Only allow numeric keys
-      if (!/[0-9]/.test(e.key)) {
-        e.preventDefault();
-      }
-    }}
-    onChange={(e) => {
-      // Ensure only numbers are set in formik
-      const numericValue = e.target.value.replace(/\D/g, '');
-      formik.setFieldValue('otp', numericValue);
-    }}
-  />
-</div>
+      <input
+        id="otp"
+        type="text"
+        name="otp"
+        maxLength={6}
+        inputMode="numeric"
+        pattern="[0-9]*"
+        className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all text-center tracking-wider ${
+          formik.touched.otp && formik.errors.otp
+            ? "border-red-400"
+            : "border-gray-200 hover:border-gray-300"
+        }`}
+        placeholder="••••••"
+        {...formik.getFieldProps("otp")}
+        disabled={formik.isSubmitting}
+        onKeyPress={(e) => {
+          if (!/[0-9]/.test(e.key)) {
+            e.preventDefault();
+          }
+        }}
+        onChange={(e) => {
+          const numericValue = e.target.value.replace(/\D/g, '');
+          formik.setFieldValue('otp', numericValue);
+        }}
+      />
+    </div>
     {formik.touched.otp && formik.errors.otp && (
       <p className="text-sm text-red-500">{formik.errors.otp}</p>
     )}
@@ -92,28 +96,32 @@ const VerificationOTP = () => {
     }),
     onSubmit: async (values, { setSubmitting, setFieldError }) => {
       try {
-        const response = await axios.post(`${API_BASE_URL}/auth/verify-otp`, {
+        const response = await axios.post(`${import.meta.env.VITE_API_URL}/auth/verify-otp`, {
           email,
           otp: values.otp,
         });
 
         if (response.status === 200) {
-          toast.success("OTP verified!", { position: "top-center" });
-          setTimeout(() => navigate("/reset-password", { state: { email } }), 1500);
+          showToast("OTP verified!", "success");
+          setTimeout(() => navigate("/reset-password", { 
+            state: { 
+              email,
+              resetToken: response.data.resetToken 
+            }
+          }), 1500);
         }
       } catch (error) {
-        if (axios.isAxiosError(error)) {
-          const status = error.response?.status;
-          const errorMessages = {
+        if (axios.isAxiosError<errorResponse>(error) && error.response) {
+          const { status, message } = error.response.data;
+          const errorMessages: { [key: number]: string } = {
             400: "Invalid OTP",
             429: "Too many attempts",
-            default: "Verification failed",
           };
-          const message = errorMessages[status as keyof typeof errorMessages] || errorMessages.default;
-          setFieldError("otp", message);
-          toast.error(message);
+          const errorMessage = errorMessages[status] || message || "Verification failed";
+          setFieldError("otp", errorMessage);
+          showToast(errorMessage, "error");
         } else {
-          toast.error("Something went wrong");
+          showToast("Something went wrong", "error");
         }
       } finally {
         setSubmitting(false);
@@ -185,7 +193,6 @@ const VerificationOTP = () => {
           </button>
         </p>
       </div>
-      
     </div>
   );
 };

@@ -1,8 +1,24 @@
 import { useFormik } from "formik";
 import * as Yup from "yup";
 import { useGoogleLogin } from "@react-oauth/google";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import axios from "axios";
+import Cookies from "js-cookie";
+import { useState } from "react";
+import { showToast } from "../../components/ShowToast";
 
+// Define the interface for handling API error responses
+interface ErrorResponse {
+  response?: {
+    data?: {
+      error?: string;
+      message?: string;
+    };
+  };
+  message?: string;
+}
+
+// Define interface for form values
 interface LoginFormValues {
   email: string;
   password: string;
@@ -10,6 +26,9 @@ interface LoginFormValues {
 }
 
 const Login = () => {
+  const navigate = useNavigate();
+  const [isLoading, setIsLoading] = useState(false);
+
   const formik = useFormik<LoginFormValues>({
     initialValues: {
       email: "",
@@ -24,24 +43,82 @@ const Login = () => {
         .min(6, "Password must be at least 6 characters")
         .required("Password is required"),
     }),
-    onSubmit: (values) => {
-      console.log("Login Data:", values);
-      // Add your API call logic here
+    onSubmit: async (values) => {
+      setIsLoading(true);
+      try {
+        const response = await axios.post(
+          `${import.meta.env.VITE_API_URL}/auth/login`,
+          values
+        );
+        const { token, user } = response.data;
+
+        Cookies.set("token", token, {
+          expires: 7,
+          secure: true,
+          sameSite: "Strict",
+        });
+        Cookies.set("user", JSON.stringify(user), {
+          expires: 7,
+          secure: true,
+          sameSite: "Strict",
+        });
+
+        navigate("/AccDashboard");
+        showToast(response.data.message, "success");
+      } catch (error: unknown) {
+        const err = error as ErrorResponse;
+        console.error(
+          "Login Error:",
+          err.response?.data?.message || err.message
+        );
+        showToast(
+          err.response?.data?.error || "Login failed. Please try again.",
+          "error"
+        );
+      } finally {
+        setIsLoading(false);
+      }
     },
   });
 
   const handleGoogleLogin = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
-      console.log("Google Login Success:", tokenResponse);
+      setIsLoading(true);
       try {
-        const userInfo = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
-          headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
+        const response = await axios.post(
+          `${import.meta.env.VITE_API_URL}/auth/google-login`,
+          {
+            googleToken: tokenResponse.access_token,
+          }
+        );
+
+        const { token, user } = response.data;
+
+        Cookies.set("token", token, {
+          expires: 7,
+          secure: true,
+          sameSite: "Strict",
         });
-        const userData = await userInfo.json();
-        console.log("User Info:", userData);
-        // Handle successful Google login (e.g., redirect, store user data)
-      } catch (error) {
-        console.error("Error fetching Google user info:", error);
+        Cookies.set("user", JSON.stringify(user), {
+          expires: 7,
+          secure: true,
+          sameSite: "Strict",
+        });
+
+        navigate("/AccDashboard");
+        showToast(response.data.message, "success");
+      } catch (error: unknown) {
+        const err = error as ErrorResponse;
+        console.error(
+          "Google Login Error:",
+          err.response?.data?.message || err.message
+        );
+        showToast(
+          err.response?.data?.error || "Google login failed. Please try again.",
+          "error"
+        );
+      } finally {
+        setIsLoading(false);
       }
     },
     onError: (error) => console.error("Google Login Failed:", error),
@@ -97,6 +174,7 @@ const Login = () => {
                 onChange={formik.handleChange}
                 onBlur={formik.handleBlur}
                 value={formik.values.email}
+                disabled={isLoading}
               />
               {formik.touched.email && formik.errors.email && (
                 <p className="mt-1 text-sm text-red-500">
@@ -122,6 +200,7 @@ const Login = () => {
                 onChange={formik.handleChange}
                 onBlur={formik.handleBlur}
                 value={formik.values.password}
+                disabled={isLoading}
               />
               {formik.touched.password && formik.errors.password && (
                 <p className="mt-1 text-sm text-red-500">
@@ -139,6 +218,7 @@ const Login = () => {
                   className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
                   onChange={formik.handleChange}
                   checked={formik.values.rememberMe}
+                  disabled={isLoading}
                 />
                 <span className="ml-2 text-gray-700">Remember me</span>
               </label>
@@ -153,13 +233,20 @@ const Login = () => {
             {/* Submit Button */}
             <button
               type="submit"
-              className="w-full bg-gradient-to-r from-purple-600 to-blue-500 text-white py-2 rounded-lg hover:from-purple-700 hover:to-blue-600 transition-all duration-300 font-medium"
+              className="w-full bg-gradient-to-r from-purple-600 to-blue-500 text-white py-2 rounded-lg hover:from-purple-700 hover:to-blue-600 transition-all duration-300 font-medium flex items-center justify-center disabled:opacity-50"
+              disabled={isLoading}
             >
-              Sign In
+              {isLoading ? (
+                <>
+                  <span className="inline-block w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></span>
+                  Signing In...
+                </>
+              ) : (
+                "Sign In"
+              )}
             </button>
-
-            {/* Divider */}
-            <div className="relative">
+             {/* Divider */}
+             <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-gray-300"></div>
               </div>
@@ -175,8 +262,9 @@ const Login = () => {
               type="button"
               onClick={() => handleGoogleLogin()}
               className="w-full flex items-center justify-center gap-2 bg-white py-2 rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-300 text-gray-700 font-medium"
+              disabled={isLoading}
             >
-              <img
+                <img
                 src="https://www.google.com/favicon.ico"
                 alt="Google"
                 className="w-5 h-5"

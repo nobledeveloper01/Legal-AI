@@ -1,16 +1,17 @@
 import { useFormik } from "formik";
 import * as Yup from "yup";
-import axios from "axios";
+import axios, { AxiosError } from "axios";
 import { useNavigate } from "react-router-dom";
-import { toast } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
+import { showToast } from "../../components/ShowToast";
 
 interface ForgotPasswordFormValues {
   email: string;
 }
 
-// Mock API endpoint - replace with your actual endpoint
-const API_BASE_URL = "http://your-api-url.com/api";
+interface ErrorResponse {
+  message: string;
+  statusCode?: number;
+}
 
 const ForgotPassword = () => {
   const navigate = useNavigate();
@@ -28,17 +29,12 @@ const ForgotPassword = () => {
       try {
         // Make API call to request password reset
         const response = await axios.post(
-          `${API_BASE_URL}/auth/forgot-password`,
-          {
-            email: values.email,
-          }
+          `${import.meta.env.VITE_API_URL}/auth/forgot-password`,
+          { email: values.email }
         );
 
         if (response.status === 200) {
-          toast.success("Password reset link sent to your email!", {
-            position: "top-right",
-            autoClose: 3000,
-          });
+          showToast(response.data.message, "success");
           resetForm();
           // Navigate back to login after a delay
           setTimeout(() => {
@@ -47,18 +43,22 @@ const ForgotPassword = () => {
         }
       } catch (error) {
         if (axios.isAxiosError(error)) {
-          if (error.response?.status === 404) {
+          const axiosError = error as AxiosError<ErrorResponse>;
+          const errorMessage =
+            axiosError.response?.data?.message || "An unexpected error occurred";
+
+          if (axiosError.response?.status === 404) {
             setFieldError("email", "No account found with this email");
-            toast.error("No account found with this email");
-          } else if (error.response?.status === 429) {
+            showToast(errorMessage, "error");
+          } else if (axiosError.response?.status === 429) {
             setFieldError("email", "Too many requests, please try again later");
-            toast.error("Too many requests, please try again later");
+            showToast(errorMessage, "error");
           } else {
             setFieldError("email", "Failed to send reset link");
-            toast.error("Failed to send reset link. Please try again.");
+            showToast(errorMessage, "error");
           }
         } else {
-          toast.error("An unexpected error occurred");
+          showToast("An unexpected error occurred", "error");
           console.error("Unexpected error:", error);
         }
       } finally {
@@ -66,7 +66,6 @@ const ForgotPassword = () => {
       }
     },
   });
-
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-100 p-4">
       <div className="flex w-full max-w-5xl h-[70vh] shadow-2xl rounded-xl overflow-hidden">
@@ -160,7 +159,6 @@ const ForgotPassword = () => {
           </div>
         </div>
       </div>
-     
     </div>
   );
 };
