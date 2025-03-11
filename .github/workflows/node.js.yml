@@ -34,6 +34,4 @@ jobs:
       run: npm test
     - name: Restart Backend App on Ec2
       working-directory: Backend
-      run: |
-        pm2 restart legal-ai || pm2 start app.js --name legal-ai
-        pm2 save
+      run: sudo pm2 restart Backend
