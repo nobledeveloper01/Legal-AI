@@ -5,13 +5,12 @@ name: Node.js CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
   build:
-
     runs-on: self-hosted
 
     strategy:
@@ -20,18 +19,20 @@ jobs:
         # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
 
     steps:
-    - uses: actions/checkout@v4
-    - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ matrix.node-version }}
-        cache: 'npm'
-    - name: Install Dependencies
-      working-directory: Backend
-      run: npm ci
-    - name: Run Tests
-      working-directory: Backend
-      run: npm test
-    - name: Restart Backend App on Ec2
-      working-directory: Backend
-      run: sudo pm2 restart Backend
+      - uses: actions/checkout@v4
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "npm"
+      - name: Install Dependencies
+        working-directory: Backend
+        run: npm install
+      - name: Run Tests
+        working-directory: Backend
+        run: npm test
+      - name: Restart Backend App on Ec2
+        working-directory: Backend
+        run: sudo pm2 restart Backend
+      - name: Show PM2 Logs (Debugging)
+        run: sudo pm2 logs Backend --lines 50
