@@ -1,0 +1,45 @@
+# This workflow will do a clean installation of node dependencies, cache/restore them, build the source code and run tests across different versions of node
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-nodejs
+
+name: Node.js CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  build:
+    runs-on: self-hosted
+
+    strategy:
+      matrix:
+        node-version: [20.x]
+        # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "npm"
+      - name: Install Dependencies
+        working-directory: Backend
+        run: npm install
+      - name: Run Tests
+        working-directory: Backend
+        run: npm test
+      - name: Restart PM2 Process
+        run: |
+          cd ~/backend/_work/Legal-AI/Legal-AI/Backend  # Navigate to correct directory
+          if sudo pm2 list | grep -q Backend; then
+            sudo pm2 stop Backend
+            sudo pm2 delete Backend
+          fi
+          sudo pm2 start app.js --name=Backend
+          sudo pm2 save
+          sudo pm2 restart Backend --update-env
+      - name: Show PM2 Logs (Debugging)
+        run: sudo pm2 logs Backend --lines 50
