@@ -31,15 +31,15 @@ jobs:
       - name: Run Tests
         working-directory: Backend
         run: npm test
-      - name: Restart PM2 Process
-        run: |
-          cd ~/backend/_work/Legal-AI/Legal-AI/Backend  # Navigate to correct directory
-          if sudo pm2 list | grep -q Backend; then
-            sudo pm2 stop Backend
-            sudo pm2 delete Backend
-          fi
-          sudo pm2 start app.js --name=Backend
-          sudo pm2 save
-          sudo pm2 restart Backend --update-env
-      - name: Show PM2 Logs (Debugging)
-        run: sudo pm2 logs Backend --lines 50
+      # - name: Restart PM2 Process
+      #   run: |
+      #     cd ~/backend/_work/Legal-AI/Legal-AI/Backend  # Navigate to correct directory
+      #     if sudo pm2 list | grep -q Backend; then
+      #       sudo pm2 stop Backend
+      #       sudo pm2 delete Backend
+      #     fi
+      #     sudo pm2 start app.js --name=Backend
+      #     sudo pm2 save
+      #     sudo pm2 restart Backend --update-env
+      # - name: Show PM2 Logs (Debugging)
+      #   run: sudo pm2 logs Backend --lines 50
