@@ -6,6 +6,7 @@ import axios from "axios";
 import Cookies from "js-cookie";
 import { useState } from "react";
 import { showToast } from "../../components/ShowToast";
+import { sanitizeInput, sanitizeFormValues } from '../../Utils/SantizeInput';
 
 // Define the interface for handling API error responses
 interface ErrorResponse {
@@ -45,36 +46,51 @@ const Login = () => {
     }),
     onSubmit: async (values) => {
       setIsLoading(true);
+      // Sanitize form values before submission
+      const sanitizedValues = sanitizeFormValues({
+        email: values.email,
+        password: values.password,
+        rememberMe: values.rememberMe,
+      });
       try {
         const response = await axios.post(
           `${import.meta.env.VITE_API_URL}/auth/login`,
-          values
+          sanitizedValues // Use sanitized values in the API call
         );
-        const { token, user } = response.data;
+        const { token, user } = response.data || {};
+        if (!token || !user) throw new Error("Invalid response from server");
 
-        Cookies.set("token", token, {
+        // Sanitize token and user data before storing in cookies
+        const sanitizedToken = sanitizeInput(token);
+        const sanitizedUser = sanitizeFormValues(user);
+
+        Cookies.set("token", sanitizedToken, {
           expires: 7,
           secure: true,
           sameSite: "Strict",
         });
-        Cookies.set("user", JSON.stringify(user), {
+        Cookies.set("user", JSON.stringify(sanitizedUser), {
           expires: 7,
           secure: true,
           sameSite: "Strict",
         });
 
         navigate("/AccDashboard");
-        showToast(response.data.message, "success");
-      } catch (error: unknown) {
-        const err = error as ErrorResponse;
-        console.error(
-          "Login Error:",
-          err.response?.data?.message || err.message
-        );
         showToast(
-          err.response?.data?.error || "Login failed. Please try again.",
-          "error"
+          sanitizeInput(response.data.message) || "Login successful",
+          "success"
         );
+      } catch (error) {
+        const err = error as ErrorResponse;
+        const errorMessage =
+          sanitizeInput(
+            err.response?.data?.error ||
+            err.response?.data?.message ||
+            err.message ||
+            "Login failed"
+          );
+        console.error("Login Error:", errorMessage);
+        showToast(errorMessage, "error");
       } finally {
         setIsLoading(false);
       }
@@ -88,40 +104,47 @@ const Login = () => {
         const response = await axios.post(
           `${import.meta.env.VITE_API_URL}/auth/google-login`,
           {
-            googleToken: tokenResponse.access_token,
+            googleToken: sanitizeInput(tokenResponse.access_token), // Sanitize Google token
           }
         );
 
         const { token, user } = response.data;
 
-        Cookies.set("token", token, {
+        // Sanitize token and user data before storing in cookies
+        const sanitizedToken = sanitizeInput(token);
+        const sanitizedUser = sanitizeFormValues(user);
+
+        Cookies.set("token", sanitizedToken, {
           expires: 7,
           secure: true,
           sameSite: "Strict",
         });
-        Cookies.set("user", JSON.stringify(user), {
+        Cookies.set("user", JSON.stringify(sanitizedUser), {
           expires: 7,
           secure: true,
           sameSite: "Strict",
         });
 
         navigate("/AccDashboard");
-        showToast(response.data.message, "success");
+        showToast(
+          sanitizeInput(response.data.message) || "Login successful",
+          "success"
+        );
       } catch (error: unknown) {
         const err = error as ErrorResponse;
-        console.error(
-          "Google Login Error:",
-          err.response?.data?.message || err.message
+        const errorMessage = sanitizeInput(
+          err.response?.data?.message || err.message || "Google login failed"
         );
+        console.error("Google Login Error:", errorMessage);
         showToast(
-          err.response?.data?.error || "Google login failed. Please try again.",
+          sanitizeInput(err.response?.data?.error) || "Google login failed. Please try again.",
           "error"
         );
       } finally {
         setIsLoading(false);
       }
     },
-    onError: (error) => console.error("Google Login Failed:", error),
+    onError: (error) => console.error("Google Login Failed:", sanitizeInput(error.message)),
   });
 
   return (
@@ -155,7 +178,16 @@ const Login = () => {
               Sign in to access your account
             </p>
           </div>
-
+          <div className="flex justify-end mb-6">
+  <Link to="/">
+    <button
+      type="button"
+      className=" bg-gradient-to-r from-purple-600 to-blue-500 text-white  rounded-lg hover:bg-blue-400 transition-all duration-300 font-medium flex items-center justify-center px-4 py-2"
+    >
+      Back to Home
+    </button>
+  </Link>
+</div>
           <form onSubmit={formik.handleSubmit} className="space-y-6">
             {/* Email Field */}
             <div>
@@ -171,7 +203,10 @@ const Login = () => {
                     : "border-gray-300"
                 }`}
                 placeholder="you@example.com"
-                onChange={formik.handleChange}
+                onChange={(e) => {
+                  const sanitizedValue = sanitizeInput(e.target.value);
+                  formik.setFieldValue("email", sanitizedValue);
+                }}
                 onBlur={formik.handleBlur}
                 value={formik.values.email}
                 disabled={isLoading}
@@ -197,7 +232,10 @@ const Login = () => {
                     : "border-gray-300"
                 }`}
                 placeholder="••••••••"
-                onChange={formik.handleChange}
+                onChange={(e) => {
+                  const sanitizedValue = sanitizeInput(e.target.value);
+                  formik.setFieldValue("password", sanitizedValue);
+                }}
                 onBlur={formik.handleBlur}
                 value={formik.values.password}
                 disabled={isLoading}
@@ -245,8 +283,8 @@ const Login = () => {
                 "Sign In"
               )}
             </button>
-             {/* Divider */}
-             <div className="relative">
+            {/* Divider */}
+            <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-gray-300"></div>
               </div>
@@ -264,7 +302,7 @@ const Login = () => {
               className="w-full flex items-center justify-center gap-2 bg-white py-2 rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-300 text-gray-700 font-medium"
               disabled={isLoading}
             >
-                <img
+              <img
                 src="https://www.google.com/favicon.ico"
                 alt="Google"
                 className="w-5 h-5"

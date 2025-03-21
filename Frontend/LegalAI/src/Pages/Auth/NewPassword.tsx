@@ -4,9 +4,8 @@ import * as Yup from "yup";
 import axios from "axios";
 import { useNavigate, useLocation } from "react-router-dom";
 import { showToast } from "../../components/ShowToast";
+import { sanitizeInput, sanitizeFormValues } from '../../Utils/SantizeInput'; // Add this import
 
-
-// Error Response Interface
 interface ErrorResponse {
   error?: string;
   message?: string;
@@ -17,7 +16,6 @@ interface NewPasswordValues {
   confirmPassword: string;
 }
 
-// Password Input Component (unchanged)
 const PasswordInput = ({ 
   formik, 
   name, 
@@ -47,7 +45,12 @@ const PasswordInput = ({
               : "border-gray-200 hover:border-gray-300"
           }`}
           placeholder={placeholder}
-          {...formik.getFieldProps(name)}
+          onChange={(e) => {
+            const sanitizedValue = sanitizeInput(e.target.value);
+            formik.setFieldValue(name, sanitizedValue);
+          }}
+          onBlur={formik.handleBlur}
+          value={formik.values[name]}
           disabled={formik.isSubmitting}
         />
         <button
@@ -89,8 +92,8 @@ const PasswordInput = ({
 const NewPassword = () => {
   const navigate = useNavigate();
   const { state } = useLocation();
-  const email = state?.email || "";
-  const resetToken = state?.resetToken || "";
+  const email = sanitizeInput(state?.email || ""); // Sanitize email from state
+  const resetToken = sanitizeInput(state?.resetToken || ""); // Sanitize resetToken from state
 
   const formik = useFormik<NewPasswordValues>({
     initialValues: {
@@ -107,22 +110,29 @@ const NewPassword = () => {
     }),
     onSubmit: async (values, { setSubmitting }) => {
       try {
-        const response = await axios.post(`${import.meta.env.VITE_API_URL}/auth/reset-password`, {
+        // Sanitize form values before submission
+        const sanitizedValues = sanitizeFormValues({
           email,
           password: values.password,
-          resetToken: resetToken,
+          resetToken,
         });
 
+        const response = await axios.post(`${import.meta.env.VITE_API_URL}/auth/reset-password`, sanitizedValues);
+
         if (response.status === 200) {
-          showToast("Password reset successfully!", "success");
+          showToast(sanitizeInput(response.data.message) || "Password reset successfully!", "success");
           setTimeout(() => navigate("/login"), 1500);
         }
       } catch (error) {
         if (axios.isAxiosError<ErrorResponse>(error)) {
-          const message = error.response?.data?.message || error.response?.data?.error || "Failed to reset password";
+          const message = sanitizeInput(
+            error.response?.data?.message || 
+            error.response?.data?.error || 
+            "Failed to reset password"
+          );
           showToast(message, "error");
         } else {
-          showToast("Something went wrong", "error");
+          showToast(sanitizeInput("Something went wrong"), "error");
         }
       } finally {
         setSubmitting(false);
@@ -188,7 +198,7 @@ const NewPassword = () => {
         <p className="mt-4 text-center text-sm text-gray-600">
           Back to{" "}
           <button
-          type="submit"
+            type="button" // Changed to type="button" since it's not submitting a form
             onClick={() => navigate("/login")}
             className="text-indigo-600 hover:text-indigo-800"
           >

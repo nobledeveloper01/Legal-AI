@@ -5,7 +5,8 @@ import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
 import Cookies from "js-cookie";
 import { useState } from "react";
-import { showToast } from "../../components/ShowToast"; // Assuming this is the correct path
+import { showToast } from "../../components/ShowToast";
+import { sanitizeInput, sanitizeFormValues } from '../../Utils/SantizeInput'; // Add this import
 
 interface SignUpFormValues {
   fullName: string;
@@ -14,7 +15,6 @@ interface SignUpFormValues {
   confirmPassword: string;
 }
 
-// Define error response shape
 interface ErrorResponse {
   response?: {
     data?: {
@@ -53,27 +53,29 @@ const SignUp = () => {
     }),
     onSubmit: async (values) => {
       setIsLoading(true);
+      // Sanitize form values before submission
+      const sanitizedValues = sanitizeFormValues({
+        name: values.fullName,
+        email: values.email,
+        password: values.password,
+      });
       try {
-        const signupData = {
-          name: values.fullName,
-          email: values.email,
-          password: values.password,
-        };
         const response = await axios.post(
           `${import.meta.env.VITE_API_URL}/auth/register`,
-          signupData
+          sanitizedValues
         );
         const { message } = response.data;
 
-        showToast(message, "success");
+        showToast(sanitizeInput(message) || "Signup successful", "success");
         navigate("/login");
       } catch (error: unknown) {
         const typedError = error as ErrorResponse;
-        const errorMessage =
+        const errorMessage = sanitizeInput(
           typedError.response?.data?.error ||
           typedError.response?.data?.message ||
           typedError.message ||
-          "Signup failed";
+          "Signup failed"
+        );
         
         console.error("Signup Error:", errorMessage);
         showToast(errorMessage, "error");
@@ -91,31 +93,36 @@ const SignUp = () => {
         const response = await axios.post(
           `${import.meta.env.VITE_API_URL}/auth/google-login`,
           {
-            googleToken: tokenResponse.access_token,
+            googleToken: sanitizeInput(tokenResponse.access_token),
           }
         );
 
         const { token, user } = response.data;
 
-        Cookies.set("token", token, {
+        // Sanitize token and user data before storing
+        const sanitizedToken = sanitizeInput(token);
+        const sanitizedUser = sanitizeFormValues(user);
+
+        Cookies.set("token", sanitizedToken, {
           expires: 7,
           secure: true,
           sameSite: "Strict",
         });
-        Cookies.set("user", JSON.stringify(user), {
+        Cookies.set("user", JSON.stringify(sanitizedUser), {
           expires: 7,
           secure: true,
           sameSite: "Strict",
         });
 
-        showToast("Google signup successful!", "success");
+        showToast(sanitizeInput(response.data.message) || "Google signup successful!", "success");
         navigate("/AccDashboard");
       } catch (error: unknown) {
         const typedError = error as ErrorResponse;
-        const errorMessage =
+        const errorMessage = sanitizeInput(
           typedError.response?.data?.error ||
           typedError.message ||
-          "Google signup failed";
+          "Google signup failed"
+        );
         
         console.error("Google Signup Error:", errorMessage);
         showToast(errorMessage, "error");
@@ -125,18 +132,16 @@ const SignUp = () => {
       }
     },
     onError: (error) => {
-      console.error("Google Sign Up Failed:", error);
-      showToast("Google signup failed", "error");
-      formik.setErrors({ email: "Google signup failed" });
+      const errorMessage = sanitizeInput(error.message || "Google signup failed");
+      console.error("Google Sign Up Failed:", errorMessage);
+      showToast(errorMessage, "error");
+      formik.setErrors({ email: errorMessage });
     },
   });
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-100 p-4">
       <div className="flex w-full max-w-5xl shadow-2xl rounded-xl overflow-hidden">
-       
-
-        {/* Right Section - Signup Form */}
         <div className="w-full md:w-1/2 bg-white p-8">
           <div className="text-center mb-8">
             <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 via-pink-500 to-blue-500 text-transparent bg-clip-text">
@@ -151,7 +156,6 @@ const SignUp = () => {
           </div>
 
           <form onSubmit={formik.handleSubmit} className="space-y-6">
-            {/* Full Name Field */}
             <div>
               <label className="block text-sm font-medium text-gray-700">
                 Full Name
@@ -165,10 +169,13 @@ const SignUp = () => {
                     : "border-gray-300"
                 }`}
                 placeholder="John Doe"
-                onChange={formik.handleChange}
+                onChange={(e) => {
+                  const sanitizedValue = sanitizeInput(e.target.value);
+                  formik.setFieldValue("fullName", sanitizedValue);
+                }}
                 onBlur={formik.handleBlur}
                 value={formik.values.fullName}
-                disabled={isLoading} // Disable input during loading
+                disabled={isLoading}
               />
               {formik.touched.fullName && formik.errors.fullName && (
                 <p className="mt-1 text-sm text-red-500">
@@ -177,7 +184,6 @@ const SignUp = () => {
               )}
             </div>
 
-            {/* Email Field */}
             <div>
               <label className="block text-sm font-medium text-gray-700">
                 Email
@@ -191,10 +197,13 @@ const SignUp = () => {
                     : "border-gray-300"
                 }`}
                 placeholder="you@example.com"
-                onChange={formik.handleChange}
+                onChange={(e) => {
+                  const sanitizedValue = sanitizeInput(e.target.value);
+                  formik.setFieldValue("email", sanitizedValue);
+                }}
                 onBlur={formik.handleBlur}
                 value={formik.values.email}
-                disabled={isLoading} // Disable input during loading
+                disabled={isLoading}
               />
               {formik.touched.email && formik.errors.email && (
                 <p className="mt-1 text-sm text-red-500">
@@ -203,7 +212,6 @@ const SignUp = () => {
               )}
             </div>
 
-            {/* Password Field */}
             <div>
               <label className="block text-sm font-medium text-gray-700">
                 Password
@@ -217,10 +225,13 @@ const SignUp = () => {
                     : "border-gray-300"
                 }`}
                 placeholder="••••••••"
-                onChange={formik.handleChange}
+                onChange={(e) => {
+                  const sanitizedValue = sanitizeInput(e.target.value);
+                  formik.setFieldValue("password", sanitizedValue);
+                }}
                 onBlur={formik.handleBlur}
                 value={formik.values.password}
-                disabled={isLoading} // Disable input during loading
+                disabled={isLoading}
               />
               {formik.touched.password && formik.errors.password && (
                 <p className="mt-1 text-sm text-red-500">
@@ -229,7 +240,6 @@ const SignUp = () => {
               )}
             </div>
 
-            {/* Confirm Password Field */}
             <div>
               <label className="block text-sm font-medium text-gray-700">
                 Confirm Password
@@ -243,10 +253,13 @@ const SignUp = () => {
                     : "border-gray-300"
                 }`}
                 placeholder="••••••••"
-                onChange={formik.handleChange}
+                onChange={(e) => {
+                  const sanitizedValue = sanitizeInput(e.target.value);
+                  formik.setFieldValue("confirmPassword", sanitizedValue);
+                }}
                 onBlur={formik.handleBlur}
                 value={formik.values.confirmPassword}
-                disabled={isLoading} // Disable input during loading
+                disabled={isLoading}
               />
               {formik.touched.confirmPassword && formik.errors.confirmPassword && (
                 <p className="mt-1 text-sm text-red-500">
@@ -255,11 +268,10 @@ const SignUp = () => {
               )}
             </div>
 
-            {/* Submit Button with Spinner */}
             <button
               type="submit"
               className="w-full bg-gradient-to-r from-purple-600 to-blue-500 text-white py-2 rounded-lg hover:from-purple-700 hover:to-blue-600 transition-all duration-300 font-medium flex items-center justify-center disabled:opacity-50"
-              disabled={isLoading} 
+              disabled={isLoading}
             >
               {isLoading ? (
                 <>
@@ -271,7 +283,6 @@ const SignUp = () => {
               )}
             </button>
 
-            {/* Divider */}
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-gray-300"></div>
@@ -283,12 +294,11 @@ const SignUp = () => {
               </div>
             </div>
 
-            {/* Google Sign-Up Button */}
             <button
               type="button"
               onClick={() => handleGoogleLogin()}
               className="w-full flex items-center justify-center gap-2 bg-white py-2 rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-300 text-gray-700 font-medium"
-              disabled={isLoading} // Disable Google button during loading
+              disabled={isLoading}
             >
               <img
                 src="https://www.google.com/favicon.ico"
@@ -299,7 +309,6 @@ const SignUp = () => {
             </button>
           </form>
 
-          {/* Sign In Link */}
           <p className="mt-4 text-center text-sm text-gray-600">
             Already have an account?{" "}
             <Link
@@ -311,8 +320,7 @@ const SignUp = () => {
           </p>
         </div>
 
-         {/* Left Section - Decorative */}
-         <div className="hidden md:flex w-1/2 flex-col justify-between bg-gradient-to-br from-purple-600 via-pink-500 to-blue-500 p-8">
+        <div className="hidden md:flex w-1/2 flex-col justify-between bg-gradient-to-br from-purple-600 via-pink-500 to-blue-500 p-8">
           <div className="text-white">
             <h2 className="text-3xl font-bold tracking-tight">
               Upload, Organize, Access

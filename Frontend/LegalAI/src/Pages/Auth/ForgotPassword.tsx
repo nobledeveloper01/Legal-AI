@@ -3,6 +3,7 @@ import * as Yup from "yup";
 import axios, { AxiosError } from "axios";
 import { useNavigate } from "react-router-dom";
 import { showToast } from "../../components/ShowToast";
+import { sanitizeInput, sanitizeFormValues } from '../../Utils/SantizeInput'; // Add this import
 
 interface ForgotPasswordFormValues {
   email: string;
@@ -27,25 +28,28 @@ const ForgotPassword = () => {
     }),
     onSubmit: async (values, { setSubmitting, resetForm, setFieldError }) => {
       try {
-        // Make API call to request password reset
+        // Sanitize the email before sending to API
+        const sanitizedValues = sanitizeFormValues({ email: values.email });
+        
         const response = await axios.post(
           `${import.meta.env.VITE_API_URL}/auth/forgot-password`,
-          { email: values.email }
+          sanitizedValues
         );
 
         if (response.status === 200) {
-          showToast(response.data.message, "success");
+          // Sanitize the response message before displaying
+          showToast(sanitizeInput(response.data.message) || "Reset link sent successfully", "success");
           resetForm();
-          // Navigate back to login after a delay
           setTimeout(() => {
-            navigate("/verify-otp", { state: { email: values.email } });
+            navigate("/verify-otp", { state: { email: sanitizedValues.email } });
           }, 3000);
         }
       } catch (error) {
         if (axios.isAxiosError(error)) {
           const axiosError = error as AxiosError<ErrorResponse>;
-          const errorMessage =
-            axiosError.response?.data?.message || "An unexpected error occurred";
+          const errorMessage = sanitizeInput(
+            axiosError.response?.data?.message || "An unexpected error occurred"
+          );
 
           if (axiosError.response?.status === 404) {
             setFieldError("email", "No account found with this email");
@@ -58,7 +62,8 @@ const ForgotPassword = () => {
             showToast(errorMessage, "error");
           }
         } else {
-          showToast("An unexpected error occurred", "error");
+          const errorMessage = sanitizeInput("An unexpected error occurred");
+          showToast(errorMessage, "error");
           console.error("Unexpected error:", error);
         }
       } finally {
@@ -66,6 +71,7 @@ const ForgotPassword = () => {
       }
     },
   });
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-100 p-4">
       <div className="flex w-full max-w-5xl h-[70vh] shadow-2xl rounded-xl overflow-hidden">
@@ -99,10 +105,13 @@ const ForgotPassword = () => {
                 className={`mt-1 w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-colors ${
                   formik.touched.email && formik.errors.email
                     ? "border-red-500"
-                    : "border-gray-300"
+                    : "当事-gray-300"
                 }`}
                 placeholder="you@example.com"
-                onChange={formik.handleChange}
+                onChange={(e) => {
+                  const sanitizedValue = sanitizeInput(e.target.value);
+                  formik.setFieldValue("email", sanitizedValue);
+                }}
                 onBlur={formik.handleBlur}
                 value={formik.values.email}
                 disabled={formik.isSubmitting}
@@ -124,7 +133,14 @@ const ForgotPassword = () => {
                   : "hover:from-purple-700 hover:to-blue-600"
               }`}
             >
-              {formik.isSubmitting ? "Sending..." : "Send Reset Link"}
+              {formik.isSubmitting ? (
+                <>
+                  <span className="inline-block w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></span>
+                  Sending...
+                </>
+              ) : (
+                "Send Reset Link"
+              )}
             </button>
           </form>
 
