@@ -146,10 +146,7 @@ export const loginUser = async (req, res) => {
       return res.status(400).json({ error: "Password Not Correct" });
     }
 
-    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, {
-      expiresIn: "1h",
-    });
-
+    const token = jwt.sign({ id: user.id.toString() }, process.env.JWT_SECRET, { expiresIn: "1h" });
     await emailService.sendLoginEmail(email, user.name);
     res.json({
       message: "Login successful",
